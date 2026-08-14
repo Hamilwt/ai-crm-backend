@@ -6,4 +6,5 @@ class LeadModel(BaseModel):
     email: EmailStr = Field(..., description="Contact email")
     company: str = Field(..., description="Company name")
     status: str = Field(default="NEW")
-    lead_score: Optional[float] = Field(default=0.0)
+    lead_score: Optional[float] = Field(default=None, description="AI predicted conversion probability")
+    sentiment_score: Optional[str] = Field(default="NEUTRAL")
