@@ -2,7 +2,7 @@ from fastapi import APIRouter
 from app.models import LeadModel, NoteModel
 from app.database import lead_collection
 from app.services import send_slack_notification
-from app.ai_engine import calculate_lead_score, analyze_sentiment
+from app.ai_engine import calculate_lead_score, analyze_sentiment, get_next_best_action # <-- Notice the new import!
 from bson.objectid import ObjectId
 
 router = APIRouter()
@@ -29,16 +29,33 @@ async def get_leads():
 
 @router.post("/leads/{lead_id}/notes")
 async def add_lead_note(lead_id: str, note: NoteModel):
-    # 1. Analyze the sentiment of the note
     sentiment = analyze_sentiment(note.text)
-    
-    # 2. Update the lead's profile in MongoDB with the new sentiment
     result = await lead_collection.update_one(
         {"_id": ObjectId(lead_id)},
         {"$set": {"sentiment_score": sentiment}}
     )
-    
     if result.modified_count == 0:
         return {"error": "Lead not found"}
-        
     return {"message": "Note analyzed!", "detected_sentiment": sentiment}
+
+# --- NEW ENDPOINT BELOW ---
+@router.get("/leads/{lead_id}/action")
+async def recommend_action(lead_id: str):
+    # 1. Fetch the lead from MongoDB
+    lead = await lead_collection.find_one({"_id": ObjectId(lead_id)})
+    if not lead:
+        return {"error": "Lead not found"}
+        
+    # 2. Extract their current stats
+    score = lead.get("lead_score", 0.0)
+    sentiment = lead.get("sentiment_score", "NEUTRAL")
+    
+    # 3. Generate the AI recommendation
+    action = get_next_best_action(score, sentiment)
+    
+    return {
+        "lead_id": lead_id,
+        "current_score": score,
+        "current_sentiment": sentiment,
+        "recommended_action": action
+    }
