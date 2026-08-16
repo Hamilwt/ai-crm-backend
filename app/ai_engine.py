@@ -11,12 +11,23 @@ def calculate_lead_score(email: str, company: str) -> float:
     return min(score, 99.9)
 
 def analyze_sentiment(text: str) -> str:
-    """Analyzes text sentiment and returns POSITIVE, NEGATIVE, or NEUTRAL."""
     analysis = TextBlob(text)
-    # Polarity ranges from -1.0 (very negative) to 1.0 (very positive)
     if analysis.sentiment.polarity > 0.1:
         return "POSITIVE"
     elif analysis.sentiment.polarity < -0.1:
         return "NEGATIVE"
     else:
         return "NEUTRAL"
+
+def get_next_best_action(lead_score: float, sentiment: str) -> str:
+    """Determines the optimal next step based on AI metrics."""
+    if lead_score >= 70 and sentiment == "NEGATIVE":
+        return "URGENT: Call client immediately to resolve concerns and save this high-value deal."
+    elif lead_score >= 70 and sentiment == "POSITIVE":
+        return "Send the closing contract and premium onboarding materials."
+    elif lead_score <= 40 and sentiment == "NEGATIVE":
+        return "Drop lead to automated nurture campaign; save sales rep time."
+    elif sentiment == "NEUTRAL":
+        return "Send a personalized follow-up email with a relevant case study."
+    else:
+        return "Schedule a standard 15-minute discovery call."
