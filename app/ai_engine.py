@@ -20,7 +20,6 @@ def analyze_sentiment(text: str) -> str:
         return "NEUTRAL"
 
 def get_next_best_action(lead_score: float, sentiment: str) -> str:
-    """Determines the optimal next step based on AI metrics."""
     if lead_score >= 70 and sentiment == "NEGATIVE":
         return "URGENT: Call client immediately to resolve concerns and save this high-value deal."
     elif lead_score >= 70 and sentiment == "POSITIVE":
@@ -31,3 +30,14 @@ def get_next_best_action(lead_score: float, sentiment: str) -> str:
         return "Send a personalized follow-up email with a relevant case study."
     else:
         return "Schedule a standard 15-minute discovery call."
+
+def calculate_churn_risk(days_since_last_contact: int, sentiment: str) -> dict:
+    """Predicts if a customer is at risk of leaving."""
+    if days_since_last_contact > 14 and sentiment == "NEGATIVE":
+        return {"risk_level": "CRITICAL RISK", "reason": "No contact in over 2 weeks with negative sentiment."}
+    elif days_since_last_contact > 30:
+        return {"risk_level": "HIGH RISK", "reason": "No contact in over 30 days. Relationship cooling."}
+    elif sentiment == "NEGATIVE":
+        return {"risk_level": "MODERATE RISK", "reason": "Recent negative communication detected."}
+    else:
+        return {"risk_level": "SAFE", "reason": "Recent contact and stable sentiment."}
