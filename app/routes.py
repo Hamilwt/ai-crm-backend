@@ -2,7 +2,7 @@ from fastapi import APIRouter
 from app.models import LeadModel, NoteModel
 from app.database import lead_collection
 from app.services import send_slack_notification
-from app.ai_engine import calculate_lead_score, analyze_sentiment, get_next_best_action # <-- Notice the new import!
+from app.ai_engine import calculate_lead_score, analyze_sentiment, get_next_best_action, calculate_churn_risk
 from bson.objectid import ObjectId
 
 router = APIRouter()
@@ -32,30 +32,38 @@ async def add_lead_note(lead_id: str, note: NoteModel):
     sentiment = analyze_sentiment(note.text)
     result = await lead_collection.update_one(
         {"_id": ObjectId(lead_id)},
-        {"$set": {"sentiment_score": sentiment}}
+        {"$set": {"sentiment_score": sentiment, "days_since_last_contact": 0}} # Resets the clock!
     )
     if result.modified_count == 0:
         return {"error": "Lead not found"}
-    return {"message": "Note analyzed!", "detected_sentiment": sentiment}
+    return {"message": "Note analyzed! Contact timer reset.", "detected_sentiment": sentiment}
 
-# --- NEW ENDPOINT BELOW ---
 @router.get("/leads/{lead_id}/action")
 async def recommend_action(lead_id: str):
-    # 1. Fetch the lead from MongoDB
+    lead = await lead_collection.find_one({"_id": ObjectId(lead_id)})
+    if not lead:
+        return {"error": "Lead not found"}
+    score = lead.get("lead_score", 0.0)
+    sentiment = lead.get("sentiment_score", "NEUTRAL")
+    action = get_next_best_action(score, sentiment)
+    return {"lead_id": lead_id, "current_score": score, "current_sentiment": sentiment, "recommended_action": action}
+
+# --- NEW ENDPOINT BELOW ---
+@router.get("/leads/{lead_id}/churn")
+async def check_churn_risk(lead_id: str):
     lead = await lead_collection.find_one({"_id": ObjectId(lead_id)})
     if not lead:
         return {"error": "Lead not found"}
         
-    # 2. Extract their current stats
-    score = lead.get("lead_score", 0.0)
+    days = lead.get("days_since_last_contact", 0)
     sentiment = lead.get("sentiment_score", "NEUTRAL")
     
-    # 3. Generate the AI recommendation
-    action = get_next_best_action(score, sentiment)
+    churn_analysis = calculate_churn_risk(days, sentiment)
     
     return {
         "lead_id": lead_id,
-        "current_score": score,
+        "days_since_last_contact": days,
         "current_sentiment": sentiment,
-        "recommended_action": action
+        "churn_risk": churn_analysis["risk_level"],
+        "flag_reason": churn_analysis["reason"]
     }
