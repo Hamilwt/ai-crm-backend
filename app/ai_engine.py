@@ -32,7 +32,6 @@ def get_next_best_action(lead_score: float, sentiment: str) -> str:
         return "Schedule a standard 15-minute discovery call."
 
 def calculate_churn_risk(days_since_last_contact: int, sentiment: str) -> dict:
-    """Predicts if a customer is at risk of leaving."""
     if days_since_last_contact > 14 and sentiment == "NEGATIVE":
         return {"risk_level": "CRITICAL RISK", "reason": "No contact in over 2 weeks with negative sentiment."}
     elif days_since_last_contact > 30:
@@ -41,3 +40,12 @@ def calculate_churn_risk(days_since_last_contact: int, sentiment: str) -> dict:
         return {"risk_level": "MODERATE RISK", "reason": "Recent negative communication detected."}
     else:
         return {"risk_level": "SAFE", "reason": "Recent contact and stable sentiment."}
+
+def generate_followup_email(lead_name: str, sentiment: str) -> str:
+    """Generates a context-aware email draft based on customer sentiment."""
+    if sentiment == "POSITIVE":
+        return f"Hi {lead_name},\n\nIt was great connecting! I'm thrilled to hear you're excited about our platform. I've attached the premium onboarding guide. Let me know if you have any questions!\n\nBest,\nSales Team"
+    elif sentiment == "NEGATIVE":
+        return f"Hi {lead_name},\n\nThank you for your candid feedback. I understand your concerns and want to make sure we address them immediately. Can we schedule a brief 5-minute call tomorrow?\n\nBest,\nSales Team"
+    else:
+        return f"Hi {lead_name},\n\nJust following up on our last conversation. I've included a case study I think you'll find relevant. Let me know when you're free to reconnect.\n\nBest,\nSales Team"
