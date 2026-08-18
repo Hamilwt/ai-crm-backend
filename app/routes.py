@@ -2,7 +2,7 @@ from fastapi import APIRouter
 from app.models import LeadModel, NoteModel
 from app.database import lead_collection
 from app.services import send_slack_notification
-from app.ai_engine import calculate_lead_score, analyze_sentiment, get_next_best_action, calculate_churn_risk
+from app.ai_engine import calculate_lead_score, analyze_sentiment, get_next_best_action, calculate_churn_risk, generate_followup_email
 from bson.objectid import ObjectId
 
 router = APIRouter()
@@ -32,7 +32,7 @@ async def add_lead_note(lead_id: str, note: NoteModel):
     sentiment = analyze_sentiment(note.text)
     result = await lead_collection.update_one(
         {"_id": ObjectId(lead_id)},
-        {"$set": {"sentiment_score": sentiment, "days_since_last_contact": 0}} # Resets the clock!
+        {"$set": {"sentiment_score": sentiment, "days_since_last_contact": 0}}
     )
     if result.modified_count == 0:
         return {"error": "Lead not found"}
@@ -48,22 +48,30 @@ async def recommend_action(lead_id: str):
     action = get_next_best_action(score, sentiment)
     return {"lead_id": lead_id, "current_score": score, "current_sentiment": sentiment, "recommended_action": action}
 
-# --- NEW ENDPOINT BELOW ---
 @router.get("/leads/{lead_id}/churn")
 async def check_churn_risk(lead_id: str):
     lead = await lead_collection.find_one({"_id": ObjectId(lead_id)})
     if not lead:
         return {"error": "Lead not found"}
-        
     days = lead.get("days_since_last_contact", 0)
     sentiment = lead.get("sentiment_score", "NEUTRAL")
-    
     churn_analysis = calculate_churn_risk(days, sentiment)
+    return {"lead_id": lead_id, "days_since_last_contact": days, "current_sentiment": sentiment, "churn_risk": churn_analysis["risk_level"], "flag_reason": churn_analysis["reason"]}
+
+# --- NEW ENDPOINT BELOW ---
+@router.get("/leads/{lead_id}/followup")
+async def auto_draft_followup(lead_id: str):
+    lead = await lead_collection.find_one({"_id": ObjectId(lead_id)})
+    if not lead:
+        return {"error": "Lead not found"}
+        
+    name = lead.get("name", "Customer")
+    sentiment = lead.get("sentiment_score", "NEUTRAL")
+    
+    email_draft = generate_followup_email(name, sentiment)
     
     return {
         "lead_id": lead_id,
-        "days_since_last_contact": days,
-        "current_sentiment": sentiment,
-        "churn_risk": churn_analysis["risk_level"],
-        "flag_reason": churn_analysis["reason"]
+        "detected_sentiment": sentiment,
+        "auto_generated_draft": email_draft
     }
